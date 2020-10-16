@@ -1,6 +1,8 @@
 #/bin/bash
 
 apt-get -y install nginx
+
+
 ##VAR
 country="FR"
 state="France"
@@ -12,7 +14,7 @@ organisation_crt="CC"
 password="ESGI2020?"
 username="maladra"
 
-# Create the CA Key for signing Client Certs
+# Create the CA Key for signing Client Certs and Server Certs
 openssl genrsa -des3 -passout pass:"$password" -out "ca.key" 4096
 
 # Create the CA Certificate for signing certs
@@ -27,12 +29,14 @@ openssl req -new -key "server.key" -out "server.req" -sha256 -passin pass:$passw
 # Create cert for web server
 openssl x509 -req -in "server.req" -CA "ca.crt" -CAkey "ca.key" -set_serial 100 -extensions server -days 1460 -outform PEM -out "server.crt" -sha256 -passin pass:$password
 
-# Create the Client Key and CSR
+# Create the Client Key
 openssl genrsa -des3 -passout pass:"$password" -out "client.key" 4096
+
+# Create client csr
 openssl req -new -key "client.key" -out "client.csr" -passin pass:$password -subj "/C=$country/ST=$state/L=$locality/O=$organisation_crt/OU=$organisation_crt/CN=/emailAddress="
 
 # Sign the client certificate with our CA cert
-openssl x509 -req -days 365 -in client.csr -CA ca.crt -CAkey ca.key  -passin pass:$password -set_serial 01 -out client.crt
+openssl x509 -req -days 365 -in client.csr -CA ca.crt -CAkey ca.key -passin pass:$password -set_serial 01 -out client.crt
 
 # Convert to .p12 to import in web navigator
 openssl pkcs12 -export -clcerts -inkey client.key -passin pass:$password -in client.crt -out client.p12 -name "MyKey" -passout pass:$password
@@ -57,15 +61,21 @@ mv client.p12 ./client
 mkdir /etc/nginx/certs
 mv ./server/* /etc/nginx/certs
 mv ./ca/ca.crt /etc/nginx/certs
+
+## Set perms for www-data
 chgrp www-data /etc/nginx/certs/ -R
 chmod 740 /etc/nginx/certs/*
+
+## Set perms for p12 file
 chown $username ./client/client.p12
 
-
+## Delete Default conf and default site conf of Nginx
 rm /etc/nginx/sites-enabled/default
 rm /etc/nginx/nginx.conf
 
 cp ./nginx.conf /etc/nginx/nginx.conf
+
+## Set Perms for Nginx
 chmod 644 /etc/nginx/nginx.conf
 
 
